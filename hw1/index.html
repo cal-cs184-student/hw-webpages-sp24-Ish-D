@@ -1,7 +1,231 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Homework 1 index.html here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184/284A Rasterizer</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184/284A: Computer Graphics and Imaging, Spring 2024</h1>
+<h1 align="middle">Homework 1: Rasterizer</h1>
+<h2 align="middle">Ishan Darji</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<p>In this homework, we implemented portions of a software rasterizer, as well as some techniques to alias the images in order to create something more smooth to the eye. The general idea of the project is to take a continuous signal, in our case scalable vector graphics images, and use sampling techniques to produce a discretized version to display on our screens. The naive version of this produces jagged fragments or other artifacts, known as aliasing, as we can not perfectly translate a vector image into pixels. In order to improve our result, we can use some signal processing and sampling techniques. The idea with anti-aliasing is to filter out high frequencies from our image prior to sampling at the cost of increased computation time or memory usage, the sections below will go into more depth about the techniques used. Overall I quite enjoyed the project, it was a good experience being able to go through each stage of the project and see how the image can be changed or improved with each new addition to the rasterizer, especially the mipmap portion.</p>
+
+<h2 align="middle">Section I: Rasterization</h2>
+
+<h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
+
+<p>For the first task in this project, we implemented a naive rasterization algorithn. To rasterize triangles, we iterate over pixels and take samples from our source image. We can sample points by doing a three-line test test of whether or not that pixel lies within our source triangle. If the point we sample is within the triangle, we can color the corresponding pixel to the desired color. If it is not we can ignore it. For this portion of the homework, we are simply testing the center of each of our pixels to get something somewhat representative of a majority of the triangle.</p>
+<p>Rather than iterating over the entire screen to test for if a point is contained within our triangle, we get the minimum and maximum x and y coordinates from our 3 points, and use this to form a bounding box. This makes it so that we are still doing some extra work by counting all of the white space around the triangle in the bounding box, however we save a lot of time compared to looking for the triangle over all of the screen space. A possible improvement over this would be to continue iterating horizontally every time we get a hit in the intersection code. This saves a decent amount of work because we know that all the pixels in the triangle will be in a contiguous block, so as soon as we hit something thats not within the triangle we know nothing after it will be.</p>
+<p>Below are some examples of the output of the program.</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/test4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Test 4 of the basic svg tests. We see that this thin portion of the pink triangle gets cut off then resumes due to sampling artifacts.</figcaption>
+      </td>
+      <td>
+        <img src="images/cube.png" align="middle" width="400px"/>
+        <figcaption align="middle">We see jagged lines at the corner of the cube test, something we will tackle later.</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/test4_2.png" align="middle" width="400px"/>
+        <figcaption align="middle">Here we can see a zoomed in version of test 4. Because we sample based off of the pixels on the screen, the same portion as before is rasterized in a higher resolution so the previous discontinuity gets filled in.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+
+<h3 align="middle">Part 2: Antialiasing triangles</h3>
+<p>In this section of the homework, we implement antialiasing by supersampling. The idea with supersampling is that rather than taking one sample at the center of the pixel, we take multiple samples around the pixel and then average them to get intermediate values and smoother edges/transitons.</p>
+<p>In implementing this, I went with the suggested approach of scaling up the sample buffer by multiplying it by the sample rate we are using, and making sure that size is maintained wherever the sample buffer is referenced. And then when we are taking samples in our rasterize_triangle function, we fill in the enlarged sample buffer normally except the width and height are both multiplied by square root(sample rate) so we ultimately take (sample rate) samples per pixel. Finally, when we are writing our pixels from our sample buffer to our frame buffer, we average all of the corresponding pixels from the sample buffer. This results in a frame buffer that is still of our regular size, but where each pixel on the screen is the result of multiple samples within the pixel being averaged. The end result is much nicer with higher samples because we get blurred edges to smooth the harsh transitions from the naive rasterization implementation.</p>
+<p>Below are some examples of images using varying sample rates, overall we see some of the skinny triangle edges that were disconnected in task 1 now being connected, and we see edges being lighter and blurred into the background as a result of being averaged.</p>
+<table style="width=100%">
+  <tr>
+    <td>
+      <img src="images/task2_0.png" align="middle" width="400px"/>
+      <figcaption align="middle">Here we can see the same triangle corner as the previous section, but now with 4 samples per pixel. It is much more smoothed out and we can very clearly see the results of the samples being averaged around the edge resulting in the lighter pink.</figcaption>
+    </td>
+    <td>
+      <img src="images/task2_1.png" align="middle" width="400px"/>
+      <figcaption align="middle">Same triangle corner from test 4 but with 16 samples per pixel, now it begins to resemble a proper triangle much more.</figcaption>
+    </td>
+  </tr>
+  <br>
+  <tr>
+    <td>
+      <img src="images/task2_3.png" align="middle" width="400px"/>
+      <figcaption align="middle">Here we can see a zoomed in version of test 4. Because we sample based off of the pixels on the screen, the same portion as before is rasterized in a higher resolution so the previous discontinuity gets filled in.</figcaption>
+    </td>
+  </tr>
+</table>
+
+
+<h3 align="middle">Part 3: Transforms</h3>
+<table style="width=100%">
+  <tr>
+    <td>
+      <img src="images/task3_0.png" align="middle" width="400px"/>
+      <figcaption align="middle">Our friend the stick man on a run, legs and arms rotated to be in a (somewhat more) running position.</figcaption>
+    </td>
+    <td>
+    <img src="images/task3_1.png" align="middle" width="400px"/>
+    <figcaption align="middle">The reference svg as displayed on an external svg renderer.</figcaption>
+    </td>
+  </tr>
+  <br>
+</table>
+
+
+
+<h2 align="middle">Section II: Sampling</h2>
+
+<h3 align="middle">Part 4: Barycentric coordinates</h3>
+  <p>In this section we implemented rasterization using barycentric coordinates. The idea behind barycentric coordinates is that they are an easy way to reference positions within the triangle, by having everything be relative to the positions of the three corners. This means that regardless of the actual coordinates, in barycentric coordinates we get corners (1,0,0), (0,1,0) and (0,0,1), and the center is always at (1/3, 1/3, 1/3). When using this system, we get values alpha, beta, and gamma that can be calculated for using the positions of the three verticies, and from there it holds that alpha+beta+gamma == 1. For any x,y pair within the triangle, alpha, beta, and gamma will always be between 0 and 1. This allows us to easily test for whether or not a point is within the desired triangle.</p>
+  <p>This representation is very convenient for computer graphics because we deal with triangles often, and this allows us to easily interpolate between values within the triangle. An example of this is the image of the three colored triangle below, where we color each corner one of red, green, and blue, and linearly interpolate between them for smooth transitions.</p>
+  
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/task4_0.png" align="middle" width="400px"/>
+       <figcaption align="middle">Triangle using barycentric coordinates colored at each edge. We can see the color being interpolated in the middle, such as the purple between the red and the blue corners.</figcaption>
+      </td>
+      <td>
+      <img src="images/task4_1.png" align="middle" width="400px"/>
+      <figcaption align="middle">The interpolated barycentric circle we rendered as part of this task.</figcaption>
+      </td>
+    </tr>
+    <br>
+  </table>
+
+
+
+<h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
+<p>In this task we implemented pixel sampling, which is a way of mapping points in screen space to points in texture space. This allows for us to texture objects with premade images by obtaining samples from the existing image by mapping our xy screen coordinates into some uv texture coordinates.</p>
+<p>In this task we implemented two different types of texture mapping. The first of which is nearest pixel sampling; this method attempts to sample the texture value at some point u,v, and will simply return the nearest sample location. The second more advanced one is bilinear pixel sampling, in which if we want to sample at some point u,v, we take samples from the four adjacent squares and interpolate those values based off of their offset from the original point u,v. This creates a smoother image after sampling because the point is a weighted average of all of the nearest texels.</p>
+<div align="middle">
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/task5_0.png" align="middle" width="450px"/>
+        <figcaption align="middle">Nearest Sampling, 1 Sample Per Pixel</figcaption>      </td>
+      <td>
+        <img src="images/task5_1.png" align="middle" width="450px"/>
+        <figcaption align="middle">Nearest Sampling, 16 Samples Per Pixel</figcaption>     </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/task5_2.png" align="middle" width="450px"/>
+        <figcaption align="middle">Bilinear Sampling, 1 Sample Per Pixel</figcaption>      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="images/task5_3.png" align="middle" width="450px"/>
+        <figcaption align="middle">Bilinear Sampling, 16 Samples Per Pixel</figcaption>
+    </tr>
+  </table>
+</div>
+
+<p>These examples can show us some of the minor but visible differences between the sampling techniques. From the non-zoomed in view, we see some artifacts on the lines on the map particularly in the nearest sampling and 1 sample per pixel case, however they are also somewhat visible with 16 samples. When we switch to bilinear sampling, the lines look like they have much fewer artifacts and patterns on them. But I did notice that there is a level of blur to the bilinear filtered image, the nearest looks slightly sharper than it. This can also be seen in the zoomed in view where the red line through the water is closer to solid red in the nearest sampling, whereas it is much more of a mix in the bilinear.</p>
+
+
+<h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
+<p>In this final part, we implemented level sampling or mipmapping. The idea with level sampling is that we can filter out higher frequencies in objects that are further away by using a lower resolution texture for them, to do this we store multiple copies of the image each one half of the previous resolution, giving us a variety of levels to choose from. We also implemented a variety of level sampling techniques: the default simply choses level zero or the highest resolution texture, nearest calculates what is deemed the best fit texture for the distance that the viewer is away from the camera, and bilinear which will determine the best mipmap level and interpolate between levels for a smooth transition from high to low resolution as the object gets further from the camera.</p>
+<p>There are tradeoffs between the different level sampling methods in different areas, for example using level sampling at all means that we have to store all of the different scaled down versions of the texture, although this only takes an extra 1/3 the storage that the original image took. In terms of speed, we are also doing more calculations as we go from nearest to bilinear sampling, where bilinear needs to do multiple texture reads whether the texture sampling itself is linear or bilinear, and it has to do additional computation to determine which level to use at all points. However, bilinear is an improvement upon linear and no level sampling in terms of antialiasing. Ultimately it is a tradeoff, we can use more memory and more computational power every frame in order to get a better antialiased image from all depths and texture sizes.</p>
+<p>Below are some examples of the varying levels.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/task6_1.png" align="middle" width="450px"/>
+        <figcaption align="middle">Trilinear Sampling (Bilinear Texture and Level Sampling), 16 Samples Per Pixel, Up close</figcaption>      </td>
+      <td>
+        <img src="images/task6_0.png" align="middle" width="450px"/>
+        <figcaption align="middle">Trilinear Sampling (Bilinear Texture and Level Sampling), 16 Samples Per Pixel, From Afar</figcaption>     </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/task6_3.png" align="middle" width="450px"/>
+        <figcaption align="middle">Zero Level Sampling,  Nearest Texture Sampling, 16 Samples Per Pixel, From Afar</figcaption>      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="images/task6_4.png" align="middle" width="450px"/>
+        <figcaption align="middle">Nearest Level Sampling,  Nearest Texture Sampling, 16 Samples Per Pixel, Mid-Distance</figcaption>
+    </tr>
+    <tr>
+      <td>
+        <img src="images/task6_5.png" align="middle" width="450px"/>
+        <figcaption align="middle">Bilinear Level Sampling,  Nearest Texture Sampling, 16 Samples Per Pixel, Mid-Distance</figcaption>
+    </tr>
+  </table>
+</div>
+<p>Over the above images, we can see some noteable differences. For example, in the images of the campanile, there is a very noticeable difference in the texture of the two trilinear images because of the distance. This is the level selection at work, because when we are further away from the image we do not care nearly as much for the details, and it is often better to antialias them out to avoid moires or other artifacts. We can also see that with zero level sampling, despite the distance the texture is the same and the zoomed-in view is much clearer than the trilinear example.</p>
+<p>With the two pictures of the parrots, we can see some of the differences between nearest and bilinear texture sampling. The two images are very similar however the bilinear image is slightly more blurred at parts, likely due to the interpolation between levels.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/6_1.png" align="middle" width="450px"/>
+        <figcaption align="middle">Zebra, Trilinear, 1spp</figcaption>      </td>
+      <td>
+        <img src="images/6_2.png" align="middle" width="450px"/>
+        <figcaption align="middle">Zebra, Bilinear levels, nearest textures, 1spp</figcaption>     </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="images/6_3.png" align="middle" width="450px"/>
+        <figcaption align="middle">Zebra, zero level sampling, bilinear texture sampling, 1spp</figcaption>      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="images/6_4.png" align="middle" width="450px"/>
+        <figcaption align="middle">Zebra, nearest level sampling, bilinear texture sampling, 1spp</figcaption>
+    </tr>
+  </table>
+</div>
+
+<p>The images of the zebra above I think provide a good example of the various methods. We can see a very clear difference in the quality between the two levels in the zoomed out nearest case. We can also see how much smoother the texture is in the trilinear image, versus the one that still uses bilinear texture sampling but only nearest pixel sampling. In this case overall, the level zero looks nicest for obvious reasons but it makes me think that there is likely some tuning that could be done with regard to distance to let us have control over how far an object needs to be before it starts degrading in texture.</p>
+
+<h2 align="middle">Section III: Art Competition</h2>
+<p>If you are not participating in the optional art competition, don't worry about this section!</p>
+
+<h3 align="middle">Part 7: Draw something interesting!</h3>
+
+</body>
 </html>
